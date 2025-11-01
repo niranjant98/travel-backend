@@ -24,7 +24,7 @@ router.post("/add", async (req, res) => {
       razorpaySignature,
     } = req.body;
 
-    // Validate required fields
+    // 🧾 Validate required fields
     if (
       !name ||
       !email ||
@@ -39,7 +39,7 @@ router.post("/add", async (req, res) => {
         .json({ success: false, message: "Missing required fields." });
     }
 
-    // Save booking in DB
+    // 💾 Save booking in DB
     const booking = new Booking({
       name,
       email,
@@ -57,7 +57,7 @@ router.post("/add", async (req, res) => {
 
     await booking.save();
 
-    // ✅ Send confirmation email
+    // 📧 Send confirmation email using Brevo
     const html = `
       <h2>Hello ${name},</h2>
       <p>🎉 Your booking for <strong>${destination}</strong> has been confirmed!</p>
@@ -66,7 +66,7 @@ router.post("/add", async (req, res) => {
       <p><strong>Amount Paid:</strong> ₹${amount}</p>
       <p>We’ll contact you soon with further details. Thank you for choosing <b>Charan Adventures</b>! 🌍</p>
       <br/>
-      <p>Best regards,<br/>Charan Adventures Team</p>
+      <p>Best regards,<br/><b>Charan Adventures Team</b></p>
     `;
 
     await sendMail(email, "Booking Confirmation - Charan Adventures", html);

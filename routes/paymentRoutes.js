@@ -1,26 +1,32 @@
 import express from "express";
 import Razorpay from "razorpay";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import sendMail from "../utils/sendMail.js"; // ✅ Import the Brevo mail sender
 
 dotenv.config();
 const router = express.Router();
 
-// ✅ Razorpay instance
+// ✅ Initialize Razorpay
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// ✅ Create Order
+// ✅ Create Razorpay Order
 router.post("/create-order", async (req, res) => {
   try {
     const { amount } = req.body;
-    if (!amount) return res.status(400).json({ success: false, message: "Amount is required" });
+
+    if (!amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount is required",
+      });
+    }
 
     const order = await razorpay.orders.create({
-      amount: amount * 100,
+      amount: amount * 100, // Convert to paise
       currency: "INR",
       receipt: `receipt_${Date.now()}`,
     });
@@ -32,7 +38,7 @@ router.post("/create-order", async (req, res) => {
   }
 });
 
-// ✅ Verify Payment
+// ✅ Verify Payment + Send Confirmation Email
 router.post("/verify", async (req, res) => {
   try {
     const {
@@ -44,6 +50,7 @@ router.post("/verify", async (req, res) => {
       amount,
     } = req.body;
 
+    // 🧾 Verify payment signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -51,33 +58,35 @@ router.post("/verify", async (req, res) => {
       .digest("hex");
 
     if (expectedSignature !== razorpay_signature) {
-      return res.status(400).json({ success: false, message: "Invalid signature" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid signature. Payment verification failed.",
+      });
     }
 
-    // ✅ Send Confirmation Email
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    // 📧 Send confirmation email using Brevo
+    const subject = "Payment Confirmation - Travel Explorer";
+    const html = `
+      <h2>Hello ${name},</h2>
+      <p>🎉 Your payment of <strong>₹${amount}</strong> was successful!</p>
+      <p>Thank you for booking your trip with <b>Travel Explorer</b> 🌍</p>
+      <p>We can’t wait to have you onboard. Have a great journey ahead!</p>
+      <br/>
+      <p style="font-size:12px;color:#555;">Payment ID: ${razorpay_payment_id}</p>
+    `;
 
-    await transporter.sendMail({
-      from: `"Travel Explorer" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: "Payment Confirmation - Travel Explorer",
-      html: `
-        <h2>Hello ${name},</h2>
-        <p>Your payment of <strong>₹${amount / 100}</strong> was successful 🎉</p>
-        <p>Thank you for booking with Travel Explorer 🌍</p>
-      `,
-    });
+    await sendMail(email, subject, html);
 
-    res.status(200).json({ success: true, message: "Payment verified and email sent!" });
+    res.status(200).json({
+      success: true,
+      message: "Payment verified and confirmation email sent!",
+    });
   } catch (error) {
-    console.error("❌ Verification Error:", error);
-    res.status(500).json({ success: false, message: "Error verifying payment" });
+    console.error("❌ Payment verification error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error verifying payment or sending email.",
+    });
   }
 });
 
