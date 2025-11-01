@@ -1,36 +1,29 @@
 // utils/sendMail.js
-import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import Brevo from "@getbrevo/brevo";
 
 dotenv.config();
 
 const sendMail = async (to, subject, html) => {
   try {
-    const transporter = nodemailer.createTransport({
-      host: "smtp-relay.brevo.com",
-      port: 587,
-      secure: false, // TLS will be used if available
-      auth: {
-        user: process.env.SENDER_EMAIL,   // <-- SENDER_EMAIL (verified sender)
-        pass: process.env.BREVO_API_KEY,  // <-- BREVO_API_KEY (Brevo SMTP/API key)
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
+    const apiInstance = new Brevo.TransactionalEmailsApi();
+    apiInstance.setApiKey(
+      Brevo.TransactionalEmailsApiApiKeys.apiKey,
+      process.env.BREVO_API_KEY
+    );
 
-    const mailOptions = {
-      from: `"Travel Explorer" <${process.env.SENDER_EMAIL}>`,
-      to,
-      subject,
-      html,
+    const sendSmtpEmail = {
+      sender: { name: "Charan Adventures", email: process.env.SENDER_EMAIL },
+      to: [{ email: to }],
+      subject: subject,
+      htmlContent: html,
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Email sent successfully:", info.response || info);
-    return info;
+    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log("✅ Email sent successfully:", data.messageId || data);
+    return data;
   } catch (error) {
-    console.error("❌ Error sending email:", error && error.message ? error.message : error);
+    console.error("❌ Error sending email:", error.message);
     throw error;
   }
 };
